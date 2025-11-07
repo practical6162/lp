@@ -1,71 +1,26 @@
-import java.util.*;
+use shopdb
 
-public class WorstFit {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+db.orderinfo.insertMany([
+  { cust_id: 123, cust_name: "abc", status: "A", price: 250 },
+  { cust_id: 124, cust_name: "xyz", status: "A", price: 500 },
+  { cust_id: 125, cust_name: "pqr", status: "B", price: 1200 },
+  { cust_id: 126, cust_name: "mno", status: "A", price: 750 }
+])
 
-        System.out.print("Enter number of memory blocks: ");
-        int nb = sc.nextInt();
-        int[] blockSize = new int[nb];
-        int[] blockAllocated = new int[nb];
+db.orderinfo.aggregate([
+  { $match: { status: "A" } },
+  { $group: { _id: "$cust_id", avg_price: { $avg: "$price" } } }
+])
 
-        System.out.println("Enter size of each memory block:");
-        for (int i = 0; i < nb; i++) {
-            System.out.print("Block " + (i + 1) + ": ");
-            blockSize[i] = sc.nextInt();
-            blockAllocated[i] = -1; // not allocated yet
-        }
+db.orderinfo.find(
+  { price: { $gte: 100, $lte: 1000 } },
+  { status: 1, _id: 0 }
+)
 
-        System.out.print("\nEnter number of processes: ");
-        int np = sc.nextInt();
-        int[] processSize = new int[np];
-        int[] allocation = new int[np];
-        Arrays.fill(allocation, -1);
+db.orderinfo.find({}, { _id: 0 })
 
-        System.out.println("Enter size of each process:");
-        for (int i = 0; i < np; i++) {
-            System.out.print("Process " + (i + 1) + ": ");
-            processSize[i] = sc.nextInt();
-        }
+db.orderinfo.createIndex({ cust_id: 1 })
 
-        // Worst Fit Allocation
-        for (int i = 0; i < np; i++) {
-            int worstIdx = -1;
-            for (int j = 0; j < nb; j++) {
-                if (blockAllocated[j] == -1 && blockSize[j] >= processSize[i]) {
-                    if (worstIdx == -1 || blockSize[j] > blockSize[worstIdx]) {
-                        worstIdx = j;
-                    }
-                }
-            }
-            if (worstIdx != -1) {
-                allocation[i] = worstIdx;
-                blockAllocated[worstIdx] = i;
-            }
-        }
+db.orderinfo.getIndexes()
 
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("Process No.\tProcess Size\tBlock Allocated");
-        System.out.println("------------------------------------------------------------");
-        for (int i = 0; i < np; i++) {
-            if (allocation[i] != -1)
-                System.out.println((i + 1) + "\t\t" + processSize[i] + "\t\tBlock " + (allocation[i] + 1));
-            else
-                System.out.println((i + 1) + "\t\t" + processSize[i] + "\t\tNot Allocated");
-        }
-
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("Block No.\tBlock Size\tAllocated\tUnused Space");
-        System.out.println("------------------------------------------------------------");
-        for (int j = 0; j < nb; j++) {
-            if (blockAllocated[j] != -1) {
-                int unused = blockSize[j] - processSize[blockAllocated[j]];
-                System.out.println((j + 1) + "\t\t" + blockSize[j] + "\t\tP" + (blockAllocated[j] + 1) + "\t\t" + unused);
-            } else {
-                System.out.println((j + 1) + "\t\t" + blockSize[j] + "\t\tFree\t\t" + blockSize[j]);
-            }
-        }
-
-        sc.close();
-    }
-}
+db.orderinfo.find({ cust_id: 123 }).explain("executionStats")
