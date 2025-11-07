@@ -1,140 +1,121 @@
-import java.io.*;
-import java.util.*;
 
-class Symbol {
-    String name;
-    int address;
+-- DBMS PRACTICAL EXAM SQL SCRIPT (MySQL Compatible)
+-- Database Creation
+CREATE DATABASE dbms_exam;
+USE dbms_exam;
 
-    Symbol(String name, int address) {
-        this.name = name;
-        this.address = address;
-    }
-}
+-- Table Creation
+CREATE TABLE Person (
+  driver_id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50),
+  address VARCHAR(100)
+);
 
-public class TwoPassAssembler {
-    static Map<String, Integer> MOT = new HashMap<>(); // Machine Opcode Table
-    static Map<String, Integer> POT = new HashMap<>(); // Pseudo Opcode Table
-    static List<Symbol> SYMTAB = new ArrayList<>();    // Symbol Table
-    static List<String> INTERMEDIATE = new ArrayList<>(); // Intermediate Code
+CREATE TABLE Car (
+  license VARCHAR(20) PRIMARY KEY,
+  model VARCHAR(30),
+  year INT
+);
 
-    static int LC = 0; // Location Counter
+CREATE TABLE Accident (
+  report_no INT PRIMARY KEY AUTO_INCREMENT,
+  date_acc DATE,
+  location VARCHAR(50)
+);
 
-    public static void main(String[] args) throws Exception {
-        initializeTables();
+CREATE TABLE Owns (
+  driver_id INT,
+  license VARCHAR(20),
+  PRIMARY KEY (driver_id, license),
+  FOREIGN KEY (driver_id) REFERENCES Person(driver_id),
+  FOREIGN KEY (license) REFERENCES Car(license)
+);
 
-        // Input Assembly Program (as list of lines)
-        String[] program = {
-            "START 100",
-            "MOVER AREG, NUM1",
-            "ADD BREG, NUM2",
-            "LABEL1 SUB AREG, NUM3",
-            "MULT AREG, NUM4",
-            "MOVEM AREG, RESULT",
-            "END"
-        };
+CREATE TABLE Participated (
+  driver_id INT,
+  model VARCHAR(30),
+  report_no INT,
+  damage_amount DECIMAL(10,2),
+  FOREIGN KEY (driver_id) REFERENCES Person(driver_id),
+  FOREIGN KEY (report_no) REFERENCES Accident(report_no)
+);
 
-        // Pass I
-        passOne(program);
+-- Data Insertion
+INSERT INTO Person (name, address) VALUES
+('Rahul', 'Pune'),
+('Amit', 'Mumbai'),
+('Sneha', 'Delhi');
 
-        System.out.println("\n--- SYMBOL TABLE ---");
-        for (Symbol s : SYMTAB)
-            System.out.println(s.name + "\t" + s.address);
+INSERT INTO Car VALUES
+('MH12AB1234', 'Honda City', 2020),
+('MH14CD5678', 'Swift', 2018),
+('MH15EF9101', 'Creta', 2022);
 
-        System.out.println("\n--- INTERMEDIATE CODE ---");
-        for (String line : INTERMEDIATE)
-            System.out.println(line);
+INSERT INTO Accident (date_acc, location) VALUES
+('2025-01-15', 'Pune'),
+('2025-05-12', 'Mumbai');
 
-        // Pass II
-        System.out.println("\n--- MACHINE CODE ---");
-        passTwo();
-    }
+INSERT INTO Owns VALUES
+(1, 'MH12AB1234'),
+(2, 'MH14CD5678'),
+(3, 'MH15EF9101');
 
-    static void initializeTables() {
-        // Machine Opcodes (Format: Mnemonic -> Opcode)
-        MOT.put("STOP", 0);
-        MOT.put("ADD", 1);
-        MOT.put("SUB", 2);
-        MOT.put("MULT", 3);
-        MOT.put("MOVER", 4);
-        MOT.put("MOVEM", 5);
-        MOT.put("COMP", 6);
-        MOT.put("BC", 7);
-        MOT.put("DIV", 8);
-        MOT.put("READ", 9);
-        MOT.put("PRINT", 10);
+INSERT INTO Participated VALUES
+(1, 'Honda City', 1, 25000),
+(2, 'Swift', 2, 18000);
 
-        // Pseudo Opcodes
-        POT.put("START", 1);
-        POT.put("END", 2);
-        POT.put("ORIGIN", 3);
-        POT.put("EQU", 4);
-        POT.put("LTORG", 5);
-        POT.put("DS", 6);
-        POT.put("DC", 7);
-    }
+-- Views
+CREATE VIEW Driver_Car_View AS
+SELECT p.name, c.model FROM Person p
+JOIN Owns o ON p.driver_id = o.driver_id
+JOIN Car c ON o.license = c.license;
 
-    static void passOne(String[] program) {
-        for (String line : program) {
-            String[] tokens = line.split("[ ,]+");
-            String label = "", opcode = "", operand1 = "", operand2 = "";
+SELECT * FROM Driver_Car_View;
 
-            if (tokens.length == 0) continue;
+-- Modify view to include year
+CREATE OR REPLACE VIEW Driver_Car_View AS
+SELECT p.name, c.model, c.year
+FROM Person p
+JOIN Owns o ON p.driver_id = o.driver_id
+JOIN Car c ON o.license = c.license;
 
-            // Handle label
-            if (!MOT.containsKey(tokens[0]) && !POT.containsKey(tokens[0])) {
-                label = tokens[0];
-                addSymbol(label, LC);
-                opcode = tokens[1];
-                if (tokens.length > 2) operand1 = tokens[2];
-                if (tokens.length > 3) operand2 = tokens[3];
-            } else {
-                opcode = tokens[0];
-                if (tokens.length > 1) operand1 = tokens[1];
-                if (tokens.length > 2) operand2 = tokens[2];
-            }
+-- Composite Index
+CREATE INDEX idx_model_year ON Car(model, year);
 
-            if (POT.containsKey(opcode)) {
-                switch (opcode) {
-                    case "START":
-                        LC = Integer.parseInt(operand1);
-                        INTERMEDIATE.add("(AD,01)\t(C," + LC + ")");
-                        break;
-                    case "END":
-                        INTERMEDIATE.add("(AD,02)");
-                        break;
-                }
-            } else if (MOT.containsKey(opcode)) {
-                INTERMEDIATE.add("(IS," + String.format("%02d", MOT.get(opcode)) + ")\t" +
-                        operand1 + "\t" + operand2);
-                LC++;
-            }
-        }
-    }
+-- View for high damage
+CREATE VIEW High_Damage_View AS
+SELECT p.name, pa.damage_amount
+FROM Person p
+JOIN Participated pa ON p.driver_id = pa.driver_id
+WHERE pa.damage_amount > 20000;
 
-    static void addSymbol(String name, int addr) {
-        for (Symbol s : SYMTAB)
-            if (s.name.equals(name)) return;
-        SYMTAB.add(new Symbol(name, addr));
-    }
+-- Index on name
+CREATE INDEX idx_name ON Person(name);
+DROP INDEX idx_name ON Person;
 
-    static void passTwo() {
-        for (String ic : INTERMEDIATE) {
-            if (ic.startsWith("(IS")) {
-                String[] parts = ic.split("\t");
-                String opcode = parts[0].substring(4, 6);
-                String reg = parts.length > 1 ? parts[1] : "";
-                String sym = parts.length > 2 ? parts[2] : "";
+-- View for recent accidents
+CREATE VIEW Recent_Accidents AS
+SELECT * FROM Accident WHERE YEAR(date_acc) = 2025;
+DROP VIEW Recent_Accidents;
 
-                int symAddr = getSymbolAddress(sym);
-                System.out.println(opcode + "\t" + reg + "\t" + symAddr);
-            }
-        }
-    }
+-- Synonym simulation using view
+CREATE VIEW acc_info AS SELECT * FROM Accident;
+INSERT INTO acc_info (date_acc, location) VALUES ('2025-07-07', 'Nashik');
 
-    static int getSymbolAddress(String name) {
-        for (Symbol s : SYMTAB)
-            if (s.name.equals(name))
-                return s.address;
-        return 0;
-    }
-}
+-- Unique Index
+CREATE UNIQUE INDEX idx_license ON Car(license);
+
+-- View for cars after 2019
+CREATE VIEW New_Cars_Owners AS
+SELECT p.name, c.model, c.year
+FROM Person p
+JOIN Owns o ON p.driver_id = o.driver_id
+JOIN Car c ON o.license = c.license
+WHERE c.year > 2019;
+
+-- Synonym for Owns table
+CREATE VIEW owns_syn AS SELECT * FROM Owns;
+SELECT * FROM owns_syn;
+
+-- Index for damage amount
+CREATE INDEX idx_damage_amount ON Participated(damage_amount);
