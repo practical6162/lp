@@ -1,65 +1,72 @@
-import java.util.*;
+CREATE DATABASE studentdb;
+USE studentdb;
 
-public class FirstFit {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+CREATE TABLE Stud_Marks (
+    Roll INT PRIMARY KEY AUTO_INCREMENT,
+    Name VARCHAR(50),
+    Total_Marks INT
+);
 
-        System.out.print("Enter number of memory blocks: ");
-        int nb = sc.nextInt();
-        int[] blockSize = new int[nb];
-        int[] blockAllocated = new int[nb];
+CREATE TABLE Result (
+    Roll INT,
+    Name VARCHAR(50),
+    Class VARCHAR(30)
+);
 
-        System.out.println("Enter size of each memory block:");
-        for (int i = 0; i < nb; i++) {
-            System.out.print("Block " + (i + 1) + ": ");
-            blockSize[i] = sc.nextInt();
-            blockAllocated[i] = -1; // no process yet
-        }
+INSERT INTO Stud_Marks (Name, Total_Marks) VALUES
+('Amit', 1200),
+('Seema', 950),
+('Ravi', 870),
+('Pooja', 800),
+('John', 1400);
 
-        System.out.print("\nEnter number of processes: ");
-        int np = sc.nextInt();
-        int[] processSize = new int[np];
-        int[] allocation = new int[np];
-        Arrays.fill(allocation, -1);
+DELIMITER $$
 
-        System.out.println("Enter size of each process:");
-        for (int i = 0; i < np; i++) {
-            System.out.print("Process " + (i + 1) + ": ");
-            processSize[i] = sc.nextInt();
-        }
+CREATE PROCEDURE proc_Grade()
+BEGIN
+    DECLARE v_roll INT;
+    DECLARE v_name VARCHAR(50);
+    DECLARE v_marks INT;
+    DECLARE v_class VARCHAR(30);
 
-        for (int i = 0; i < np; i++) {
-            for (int j = 0; j < nb; j++) {
-                if (blockAllocated[j] == -1 && blockSize[j] >= processSize[i]) {
-                    allocation[i] = j;
-                    blockAllocated[j] = i;
-                    break;
-                }
-            }
-        }
+    -- Cursor to read all students
+    DECLARE cur_student CURSOR FOR
+        SELECT Roll, Name, Total_Marks FROM Stud_Marks;
 
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("Process No.\tProcess Size\tBlock Allocated");
-        System.out.println("------------------------------------------------------------");
-        for (int i = 0; i < np; i++) {
-            if (allocation[i] != -1)
-                System.out.println((i + 1) + "\t\t" + processSize[i] + "\t\tBlock " + (allocation[i] + 1));
-            else
-                System.out.println((i + 1) + "\t\t" + processSize[i] + "\t\tNot Allocated");
-        }
+    -- Exit handler when no more rows
+    DECLARE CONTINUE HANDLER FOR NOT FOUND
+        SET v_roll = NULL;
 
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("Block No.\tBlock Size\tAllocated\tFragment");
-        System.out.println("------------------------------------------------------------");
-        for (int j = 0; j < nb; j++) {
-            if (blockAllocated[j] != -1) {
-                int frag = blockSize[j] - processSize[blockAllocated[j]];
-                System.out.println((j + 1) + "\t\t" + blockSize[j] + "\t\tP" + (blockAllocated[j] + 1) + "\t\t" + frag);
-            } else {
-                System.out.println((j + 1) + "\t\t" + blockSize[j] + "\t\tFree\t\t" + blockSize[j]);
-            }
-        }
+    OPEN cur_student;
 
-        sc.close();
-    }
-}
+    read_loop: LOOP
+        FETCH cur_student INTO v_roll, v_name, v_marks;
+        IF v_roll IS NULL THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Categorization logic
+        IF v_marks BETWEEN 990 AND 1500 THEN
+            SET v_class = 'Distinction';
+        ELSEIF v_marks BETWEEN 900 AND 989 THEN
+            SET v_class = 'First Class';
+        ELSEIF v_marks BETWEEN 825 AND 899 THEN
+            SET v_class = 'Higher Second Class';
+        ELSE
+            SET v_class = 'Fail';
+        END IF;
+
+        -- Insert result into Result table
+        INSERT INTO Result VALUES (v_roll, v_name, v_class);
+
+        -- Show message (for terminal output)
+        SELECT CONCAT(v_name, ' => ', v_class) AS Result;
+    END LOOP;
+
+    CLOSE cur_student;
+END$$
+
+DELIMITER ;
+--call
+CALL proc_Grade();
+
