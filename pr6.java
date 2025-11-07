@@ -1,103 +1,75 @@
-import java.util.*;
+CREATE DATABASE rollcalldb;
+USE rollcalldb;
 
-class Process {
-    int pid;
-    int arrival;
-    int burst;
-    int remaining;
-    int waiting;
-    int turnaround;
-    int completion;
-}
+-- Old RollCall Table
+CREATE TABLE O_RollCall (
+    RollNo INT PRIMARY KEY,
+    Name VARCHAR(50),
+    City VARCHAR(50)
+);
 
-public class RoundRobin {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+-- New RollCall Table
+CREATE TABLE N_RollCall (
+    RollNo INT,
+    Name VARCHAR(50),
+    City VARCHAR(50)
+);
 
-        System.out.print("Enter number of processes: ");
-        int n = sc.nextInt();
+-- Sample Data
+INSERT INTO O_RollCall VALUES
+(1, 'Amit', 'Pune'),
+(2, 'Seema', 'Nashik');
 
-        Process[] p = new Process[n];
-        for (int i = 0; i < n; i++) {
-            p[i] = new Process();
-            System.out.println("\nEnter details for Process " + (i + 1) + ":");
-            System.out.print("Process ID: ");
-            p[i].pid = sc.nextInt();
-            System.out.print("Arrival Time: ");
-            p[i].arrival = sc.nextInt();
-            System.out.print("Burst Time: ");
-            p[i].burst = sc.nextInt();
-            p[i].remaining = p[i].burst;
-        }
+INSERT INTO N_RollCall VALUES
+(2, 'Seema', 'Nashik'),
+(3, 'Ravi', 'Mumbai'),
+(4, 'John', 'Pune');
 
-        System.out.print("\nEnter Time Quantum: ");
-        int tq = sc.nextInt();
+DELIMITER $$
 
-        Queue<Integer> q = new LinkedList<>();
-        List<Integer> gantt = new ArrayList<>();
+CREATE PROCEDURE MergeRollCall()
+BEGIN
+    DECLARE v_roll INT;
+    DECLARE v_name VARCHAR(50);
+    DECLARE v_city VARCHAR(50);
+    DECLARE v_exists INT DEFAULT 0;
 
-        int currentTime = 0;
-        boolean[] inQueue = new boolean[n];
-        int completed = 0;
+    -- Cursor for N_RollCall
+    DECLARE cur_nroll CURSOR FOR
+        SELECT RollNo, Name, City FROM N_RollCall;
 
-        while (completed < n) {
-            for (int i = 0; i < n; i++) {
-                if (p[i].arrival <= currentTime && !inQueue[i] && p[i].remaining > 0) {
-                    q.add(i);
-                    inQueue[i] = true;
-                }
-            }
+    -- Exit handler when cursor ends
+    DECLARE CONTINUE HANDLER FOR NOT FOUND
+        SET v_roll = NULL;
 
-            if (q.isEmpty()) {
-                currentTime++;
-                continue;
-            }
+    OPEN cur_nroll;
 
-            int idx = q.poll();
-            gantt.add(p[idx].pid);
+    read_loop: LOOP
+        FETCH cur_nroll INTO v_roll, v_name, v_city;
+        IF v_roll IS NULL THEN
+            LEAVE read_loop;
+        END IF;
 
-            int execTime = Math.min(tq, p[idx].remaining);
-            p[idx].remaining -= execTime;
-            currentTime += execTime;
+        -- Check if RollNo already exists in O_RollCall
+        SELECT COUNT(*) INTO v_exists
+        FROM O_RollCall
+        WHERE RollNo = v_roll;
 
-            for (int i = 0; i < n; i++) {
-                if (p[i].arrival <= currentTime && !inQueue[i] && p[i].remaining > 0) {
-                    q.add(i);
-                    inQueue[i] = true;
-                }
-            }
+        -- If not exists, insert
+        IF v_exists = 0 THEN
+            INSERT INTO O_RollCall VALUES (v_roll, v_name, v_city);
+            SELECT CONCAT('Inserted RollNo ', v_roll, ' (', v_name, ')') AS Message;
+        ELSE
+            SELECT CONCAT('Skipped RollNo ', v_roll, ' (Already Exists)') AS Message;
+        END IF;
+    END LOOP;
 
-            if (p[idx].remaining > 0) {
-                q.add(idx);
-            } else {
-                p[idx].completion = currentTime;
-                p[idx].turnaround = p[idx].completion - p[idx].arrival;
-                p[idx].waiting = p[idx].turnaround - p[idx].burst;
-                completed++;
-            }
-            inQueue[idx] = false;
-        }
+    CLOSE cur_nroll;
+END$$
 
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("PID\tAT\tBT\tWT\tTAT\tCT");
-        System.out.println("------------------------------------------------------------");
-        double totalWT = 0, totalTAT = 0;
-        for (Process x : p) {
-            System.out.printf("%d\t%d\t%d\t%d\t%d\t%d\n",
-                    x.pid, x.arrival, x.burst, x.waiting, x.turnaround, x.completion);
-            totalWT += x.waiting;
-            totalTAT += x.turnaround;
-        }
+DELIMITER ;
 
-        System.out.println("------------------------------------------------------------");
-        System.out.printf("Average Waiting Time: %.2f\n", totalWT / n);
-        System.out.printf("Average Turnaround Time: %.2f\n", totalTAT / n);
+--call
+CALL MergeRollCall();
 
-        System.out.println("\nGantt Chart (Order of Execution):");
-        for (int pid : gantt)
-            System.out.print("|  P" + pid + "  ");
-        System.out.println("|");
 
-        sc.close();
-    }
-}
