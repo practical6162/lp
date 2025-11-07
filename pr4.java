@@ -1,84 +1,85 @@
-import java.util.*;
+CREATE DATABASE librarydb;
+USE librarydb;
 
-class Process {
-    int pid;
-    int arrival;
-    int burst;
-    int remaining;
-    int completion;
-    int waiting;
-    int turnaround;
-}
+-- Borrower Table
+CREATE TABLE Borrower (
+    Rollin INT PRIMARY KEY,
+    Name VARCHAR(50),
+    DateofIssue DATE,
+    NameofBook VARCHAR(50),
+    Status CHAR(1)
+);
 
-public class SJF_Preemptive {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+-- Fine Table
+CREATE TABLE Fine (
+    Roll_no INT,
+    Date DATE,
+    Amt INT
+);
 
-        System.out.print("Enter number of processes: ");
-        int n = sc.nextInt();
+INSERT INTO Borrower VALUES
+(1, 'Amit', '2025-09-10', 'DBMS', 'I'),
+(2, 'Seema', '2025-10-15', 'CN', 'I'),
+(3, 'Ravi', '2025-10-25', 'AI', 'I'),
+(4, 'Pooja', '2025-09-05', 'DBMS', 'I'),
+(5, 'John', '2025-10-20', 'OS', 'I');
 
-        Process[] p = new Process[n];
-        for (int i = 0; i < n; i++) {
-            p[i] = new Process();
-            System.out.println("\nEnter details for Process " + (i + 1) + ":");
-            System.out.print("Process ID: ");
-            p[i].pid = sc.nextInt();
-            System.out.print("Arrival Time: ");
-            p[i].arrival = sc.nextInt();
-            System.out.print("Burst Time: ");
-            p[i].burst = sc.nextInt();
-            p[i].remaining = p[i].burst;
-        }
+DELIMITER $$
 
-        int completed = 0, currentTime = 0, prev = -1;
-        List<Integer> gantt = new ArrayList<>();
+CREATE PROCEDURE CheckFine(IN v_rollin INT, IN v_bookname VARCHAR(50))
+BEGIN
+    DECLARE v_dateofissue DATE;
+    DECLARE v_days INT DEFAULT 0;
+    DECLARE v_fine INT DEFAULT 0;
+    DECLARE v_status CHAR(1);
 
-        while (completed < n) {
-            int idx = -1;
-            int min = Integer.MAX_VALUE;
+    -- Exception handler: if any error occurs
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SELECT 'Error: Invalid Roll No or Book Name!' AS Message;
+        ROLLBACK;
+    END;
 
-            for (int i = 0; i < n; i++) {
-                if (p[i].arrival <= currentTime && p[i].remaining > 0 && p[i].remaining < min) {
-                    min = p[i].remaining;
-                    idx = i;
-                }
-            }
+    START TRANSACTION;
 
-            if (idx != -1) {
-                if (prev != idx) gantt.add(p[idx].pid);
-                p[idx].remaining--;
-                currentTime++;
+    -- Fetch date of issue and status
+    SELECT DateofIssue, Status
+    INTO v_dateofissue, v_status
+    FROM Borrower
+    WHERE Rollin = v_rollin AND NameofBook = v_bookname;
 
-                if (p[idx].remaining == 0) {
-                    p[idx].completion = currentTime;
-                    p[idx].turnaround = p[idx].completion - p[idx].arrival;
-                    p[idx].waiting = p[idx].turnaround - p[idx].burst;
-                    completed++;
-                }
-                prev = idx;
-            } else {
-                currentTime++;
-            }
-        }
+    -- Calculate number of days from issue
+    SET v_days = DATEDIFF(CURDATE(), v_dateofissue);
 
-        System.out.println("\n------------------------------------------------------------");
-        System.out.println("PID\tArrival\tBurst\tWaiting\tTurnaround\tCompletion");
-        System.out.println("------------------------------------------------------------");
-        double totalWT = 0, totalTAT = 0;
-        for (Process x : p) {
-            System.out.printf("%d\t%d\t%d\t%d\t%d\t\t%d\n",
-                    x.pid, x.arrival, x.burst, x.waiting, x.turnaround, x.completion);
-            totalWT += x.waiting;
-            totalTAT += x.turnaround;
-        }
+    -- Fine logic
+    IF v_days BETWEEN 15 AND 30 THEN
+        SET v_fine = v_days * 5;
+    ELSEIF v_days > 30 THEN
+        SET v_fine = v_days * 50;
+    ELSE
+        SET v_fine = 0;
+    END IF;
 
-        System.out.println("------------------------------------------------------------");
-        System.out.printf("Average Waiting Time: %.2f\n", totalWT / n);
-        System.out.printf("Average Turnaround Time: %.2f\n", totalTAT / n);
+    -- Update borrower status
+    UPDATE Borrower
+    SET Status = 'R'
+    WHERE Rollin = v_rollin AND NameofBook = v_bookname;
 
-        System.out.println("\nGantt Chart (Order of Execution):");
-        for (int pid : gantt)
-            System.out.print("|  P" + pid + "  ");
-        System.out.println("|");
-    }
-}
+    -- If fine is applicable, insert into Fine table
+    IF v_fine > 0 THEN
+        INSERT INTO Fine VALUES (v_rollin, CURDATE(), v_fine);
+        SELECT CONCAT('Fine of Rs. ', v_fine, ' added for Roll No ', v_rollin) AS Message;
+    ELSE
+        SELECT ' No fine applicable.' AS Message;
+    END IF;
+
+    COMMIT;
+END$$
+
+DELIMITER ;
+ 
+ 
+ 
+ --call
+ CALL CheckFine(1, 'DBMS');
+
