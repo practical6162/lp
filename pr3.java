@@ -1,74 +1,83 @@
 
-import java.util.*;
+-- DBMS PRACTICAL EXAM: Problem 3
+-- Create Customer and Account Tables and Perform Queries
 
-class Process {
-    int pid;
-    int arrival;
-    int burst;
-    int waiting;
-    int turnaround;
-    int completion;
-}
+-- Step 1: Create Tables
+CREATE TABLE Customer (
+  C_Id INT PRIMARY KEY,
+  Cname VARCHAR(30),
+  City VARCHAR(30)
+);
 
-public class FCFS {
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+CREATE TABLE Account (
+  C_Id INT,
+  Acc_Type VARCHAR(20),
+  Amount INT,
+  FOREIGN KEY (C_Id) REFERENCES Customer(C_Id)
+);
 
-        System.out.print("Enter number of processes: ");
-        int n = sc.nextInt();
+-- Step 2: Insert Values into Customer Table
+INSERT INTO Customer VALUES
+(1, 'John', 'Nashik'),
+(2, 'Seema', 'Aurangabad'),
+(3, 'Amita', 'Nagar'),
+(4, 'Rakesh', 'Pune'),
+(5, 'Samata', 'Nashik'),
+(6, 'Ankita', 'Chandwad'),
+(7, 'Bhavika', 'Pune'),
+(8, 'Deepa', 'Mumbai'),
+(9, 'Nitin', 'Nagpur'),
+(10, 'Pooja', 'Pune');
 
-        Process[] p = new Process[n];
-        for (int i = 0; i < n; i++) {
-            p[i] = new Process();
-            System.out.println("\nEnter details for Process " + (i + 1) + ":");
-            System.out.print("Process ID: ");
-            p[i].pid = sc.nextInt();
-            System.out.print("Arrival Time: ");
-            p[i].arrival = sc.nextInt();
-            System.out.print("Burst Time: ");
-            p[i].burst = sc.nextInt();
-        }
+-- Step 3: Insert Values into Account Table
+INSERT INTO Account VALUES
+(1, 'Current', 5000),
+(2, 'Saving', 20000),
+(3, 'Saving', 70000),
+(4, 'Saving', 50000),
+(6, 'Current', 35000),
+(7, 'Loan', 30000),
+(8, 'Saving', 50000),
+(9, 'Saving', 90000),
+(10, 'Loan', 8000),
+(11, 'Current', 45000);
 
-        Arrays.sort(p, Comparator.comparingInt(a -> a.arrival));
+-- Step 4: Queries
 
-        int currentTime = 0;
-        for (int i = 0; i < n; i++) {
-            if (currentTime < p[i].arrival)
-                currentTime = p[i].arrival;
+-- 1) Show the cname, Acc_Type, amount for customers having saving account
+SELECT c.Cname, a.Acc_Type, a.Amount
+FROM Customer c
+JOIN Account a ON c.C_Id = a.C_Id
+WHERE a.Acc_Type = 'Saving';
 
-            p[i].waiting = currentTime - p[i].arrival;
-            p[i].completion = currentTime + p[i].burst;
-            p[i].turnaround = p[i].completion - p[i].arrival;
-            currentTime = p[i].completion;
-        }
+-- 2) Display data using Natural, Left and Right Join
+SELECT * FROM Customer NATURAL JOIN Account;
 
-        System.out.println("\n----------------------------------------------------------");
-        System.out.println("PID\tArrival\tBurst\tWaiting\tTurnaround\tCompletion");
-        System.out.println("----------------------------------------------------------");
-        double totalWait = 0, totalTurn = 0;
-        for (Process x : p) {
-            System.out.printf("%d\t%d\t%d\t%d\t%d\t\t%d\n",
-                    x.pid, x.arrival, x.burst, x.waiting, x.turnaround, x.completion);
-            totalWait += x.waiting;
-            totalTurn += x.turnaround;
-        }
+SELECT c.C_Id, c.Cname, c.City, a.Acc_Type, a.Amount
+FROM Customer c LEFT JOIN Account a ON c.C_Id = a.C_Id;
 
-        System.out.println("----------------------------------------------------------");
-        System.out.printf("Average Waiting Time: %.2f\n", totalWait / n);
-        System.out.printf("Average Turnaround Time: %.2f\n", totalTurn / n);
+SELECT c.C_Id, c.Cname, c.City, a.Acc_Type, a.Amount
+FROM Customer c RIGHT JOIN Account a ON c.C_Id = a.C_Id;
 
-        System.out.println("\nGantt Chart:");
-        for (Process x : p)
-            System.out.print("|  P" + x.pid + "  ");
-        System.out.println("|");
+-- 3) Display customers living in same city as 'Pooja'
+SELECT * FROM Customer
+WHERE City = (SELECT City FROM Customer WHERE Cname = 'Pooja');
 
-        int time = 0;
-        System.out.print(p[0].arrival);
-        for (Process x : p)
-            System.out.print("   " + x.completion);
-        System.out.println();
+-- 4) Display accounts with less than average amount
+SELECT * FROM Account
+WHERE Amount < (SELECT AVG(Amount) FROM Account);
 
-        sc.close();
-    }
-}
+-- 5) Display C_Id having maximum amount
+SELECT C_Id FROM Account
+WHERE Amount = (SELECT MAX(Amount) FROM Account);
 
+-- 6) Display amount and acc_type of customers whose amount is the minimum of that acc_type
+SELECT Acc_Type, Amount
+FROM Account a
+WHERE Amount = (
+  SELECT MIN(Amount) FROM Account b WHERE a.Acc_Type = b.Acc_Type
+);
+
+-- 7) Display amount of accounts whose amount is higher than any saving account amount
+SELECT * FROM Account
+WHERE Amount > ANY (SELECT Amount FROM Account WHERE Acc_Type = 'Saving');
