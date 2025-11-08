@@ -1,75 +1,55 @@
-CREATE DATABASE rollcalldb;
-USE rollcalldb;
-
--- Old RollCall Table
 CREATE TABLE O_RollCall (
-    RollNo INT PRIMARY KEY,
-    Name VARCHAR(50),
-    City VARCHAR(50)
+ Roll_No NUMBER PRIMARY KEY,
+ Name VARCHAR2(30)
 );
-
--- New RollCall Table
 CREATE TABLE N_RollCall (
-    RollNo INT,
-    Name VARCHAR(50),
-    City VARCHAR(50)
+ Roll_No NUMBER PRIMARY KEY,
+ Name VARCHAR2(30)
 );
-
--- Sample Data
-INSERT INTO O_RollCall VALUES
-(1, 'Amit', 'Pune'),
-(2, 'Seema', 'Nashik');
-
-INSERT INTO N_RollCall VALUES
-(2, 'Seema', 'Nashik'),
-(3, 'Ravi', 'Mumbai'),
-(4, 'John', 'Pune');
-
-DELIMITER $$
-
-CREATE PROCEDURE MergeRollCall()
+-- Old RollCall data (existing)
+INSERT INTO O_RollCall VALUES (1, 'Gayatri');
+INSERT INTO O_RollCall VALUES (2, 'Amit');
+INSERT INTO O_RollCall VALUES (3, 'Riya');
+-- New RollCall data (new entries)
+INSERT INTO N_RollCall VALUES (2, 'Amit');
+INSERT INTO N_RollCall VALUES (3, 'Riya');
+INSERT INTO N_RollCall VALUES (4, 'Neha');
+INSERT INTO N_RollCall VALUES (5, 'Rakesh');
+COMMIT;
+SQL> edit merge_rollcall.sql
+SET SERVEROUTPUT ON;
+DECLARE
+ -- Parameterized cursor: accepts Roll_No as input
+ CURSOR c_new(p_roll N_RollCall.Roll_No%TYPE) IS
+ SELECT Roll_No, Name
+ FROM N_RollCall
+ WHERE Roll_No = p_roll;
+ v_roll N_RollCall.Roll_No%TYPE;
+ v_name N_RollCall.Name%TYPE;
+ v_count NUMBER;
 BEGIN
-    DECLARE v_roll INT;
-    DECLARE v_name VARCHAR(50);
-    DECLARE v_city VARCHAR(50);
-    DECLARE v_exists INT DEFAULT 0;
-
-    -- Cursor for N_RollCall
-    DECLARE cur_nroll CURSOR FOR
-        SELECT RollNo, Name, City FROM N_RollCall;
-
-    -- Exit handler when cursor ends
-    DECLARE CONTINUE HANDLER FOR NOT FOUND
-        SET v_roll = NULL;
-
-    OPEN cur_nroll;
-
-    read_loop: LOOP
-        FETCH cur_nroll INTO v_roll, v_name, v_city;
-        IF v_roll IS NULL THEN
-            LEAVE read_loop;
-        END IF;
-
-        -- Check if RollNo already exists in O_RollCall
-        SELECT COUNT(*) INTO v_exists
-        FROM O_RollCall
-        WHERE RollNo = v_roll;
-
-        -- If not exists, insert
-        IF v_exists = 0 THEN
-            INSERT INTO O_RollCall VALUES (v_roll, v_name, v_city);
-            SELECT CONCAT('Inserted RollNo ', v_roll, ' (', v_name, ')') AS Message;
-        ELSE
-            SELECT CONCAT('Skipped RollNo ', v_roll, ' (Already Exists)') AS Message;
-        END IF;
-    END LOOP;
-
-    CLOSE cur_nroll;
-END$$
-
-DELIMITER ;
-
---call
-CALL MergeRollCall();
-
-
+ -- Outer loop over all records in N_RollCall
+ FOR rec IN (SELECT * FROM N_RollCall) LOOP
+ -- Check if Roll_No already exists in O_RollCall
+ SELECT COUNT(*) INTO v_count
+ FROM O_RollCall
+ WHERE Roll_No = rec.Roll_No;
+ -- If not found, fetch data using parameterized cursor and insert
+ IF v_count = 0 THEN
+ OPEN c_new(rec.Roll_No);
+ FETCH c_new INTO v_roll, v_name;
+ INSERT INTO O_RollCall VALUES (v_roll, v_name);
+ CLOSE c_new;
+ DBMS_OUTPUT.PUT_LINE('Inserted Roll_No: ' || v_roll || ' Name: ' || v_name);
+ ELSE
+ DBMS_OUTPUT.PUT_LINE('Skipped Roll_No: ' || rec.Roll_No || ' (already exists)');
+ END IF;
+ END LOOP;
+ DBMS_OUTPUT.PUT_LINE('--- Merge Complete ---');
+EXCEPTION
+ WHEN OTHERS THEN
+ DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
+SQL> @merge_rollcall.sql
+SQL> SELECT * FROM O_RollCall;
