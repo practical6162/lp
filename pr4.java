@@ -1,79 +1,85 @@
--- PL/SQL Unnamed Block for Borrower and Fine Management (Control + Exception Handling)
+CREATE DATABASE librarydb;
+USE librarydb;
 
--- Create Borrower table
+-- Borrower Table
 CREATE TABLE Borrower (
-  Rollin NUMBER PRIMARY KEY,
-  Name VARCHAR2(30),
-  DateofIssue DATE,
-  NameofBook VARCHAR2(50),
-  Status CHAR(1)
+    Rollin INT PRIMARY KEY,
+    Name VARCHAR(50),
+    DateofIssue DATE,
+    NameofBook VARCHAR(50),
+    Status CHAR(1)
 );
 
--- Create Fine table
+-- Fine Table
 CREATE TABLE Fine (
-  Roll_no NUMBER,
-  Date_ DATE,
-  Amt NUMBER(10,2)
+    Roll_no INT,
+    Date DATE,
+    Amt INT
 );
 
--- Insert sample data
-INSERT INTO Borrower VALUES (1, 'Rahul', TO_DATE('2025-10-01', 'YYYY-MM-DD'), 'DBMS', 'I');
-INSERT INTO Borrower VALUES (2, 'Sneha', TO_DATE('2025-10-20', 'YYYY-MM-DD'), 'OS', 'I');
-INSERT INTO Borrower VALUES (3, 'Amit', TO_DATE('2025-09-25', 'YYYY-MM-DD'), 'CN', 'I');
-COMMIT;
+INSERT INTO Borrower VALUES
+(1, 'Amit', '2025-09-10', 'DBMS', 'I'),
+(2, 'Seema', '2025-10-15', 'CN', 'I'),
+(3, 'Ravi', '2025-10-25', 'AI', 'I'),
+(4, 'Pooja', '2025-09-05', 'DBMS', 'I'),
+(5, 'John', '2025-10-20', 'OS', 'I');
 
--- Enable output
-SET SERVEROUTPUT ON;
+DELIMITER $$
 
--- Unnamed PL/SQL Block
-DECLARE
-  v_roll Borrower.Rollin%TYPE;
-  v_book Borrower.NameofBook%TYPE;
-  v_date_issue Borrower.DateofIssue%TYPE;
-  v_days NUMBER;
-  v_fine NUMBER := 0;
+CREATE PROCEDURE CheckFine(IN v_rollin INT, IN v_bookname VARCHAR(50))
 BEGIN
-  -- Accept roll number and book name from user
-  v_roll := &roll_no;
-  v_book := '&book_name';
+    DECLARE v_dateofissue DATE;
+    DECLARE v_days INT DEFAULT 0;
+    DECLARE v_fine INT DEFAULT 0;
+    DECLARE v_status CHAR(1);
 
-  -- Fetch date of issue
-  SELECT DateofIssue INTO v_date_issue
-  FROM Borrower
-  WHERE Rollin = v_roll AND NameofBook = v_book AND Status = 'I';
+    -- Exception handler: if any error occurs
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SELECT 'Error: Invalid Roll No or Book Name!' AS Message;
+        ROLLBACK;
+    END;
 
-  -- Calculate number of days since issue
-  v_days := TRUNC(SYSDATE - v_date_issue);
+    START TRANSACTION;
 
-  -- Fine calculation using control structures
-  IF v_days BETWEEN 15 AND 30 THEN
-    v_fine := v_days * 5;
-  ELSIF v_days > 30 THEN
-    v_fine := v_days * 50;
-  ELSE
-    v_fine := 0;
-  END IF;
+    -- Fetch date of issue and status
+    SELECT DateofIssue, Status
+    INTO v_dateofissue, v_status
+    FROM Borrower
+    WHERE Rollin = v_rollin AND NameofBook = v_bookname;
 
-  -- Update status from 'I' (Issued) to 'R' (Returned)
-  UPDATE Borrower
-  SET Status = 'R'
-  WHERE Rollin = v_roll AND NameofBook = v_book;
+    -- Calculate number of days from issue
+    SET v_days = DATEDIFF(CURDATE(), v_dateofissue);
 
-  -- Insert fine details if applicable
-  IF v_fine > 0 THEN
-    INSERT INTO Fine VALUES (v_roll, SYSDATE, v_fine);
-    DBMS_OUTPUT.PUT_LINE('Fine generated: Rs. ' || v_fine);
-  ELSE
-    DBMS_OUTPUT.PUT_LINE('No fine applicable.');
-  END IF;
+    -- Fine logic
+    IF v_days BETWEEN 15 AND 30 THEN
+        SET v_fine = v_days * 5;
+    ELSEIF v_days > 30 THEN
+        SET v_fine = v_days * 50;
+    ELSE
+        SET v_fine = 0;
+    END IF;
 
-  COMMIT;
-  DBMS_OUTPUT.PUT_LINE('Book returned successfully!');
+    -- Update borrower status
+    UPDATE Borrower
+    SET Status = 'R'
+    WHERE Rollin = v_rollin AND NameofBook = v_bookname;
 
-EXCEPTION
-  WHEN NO_DATA_FOUND THEN
-    DBMS_OUTPUT.PUT_LINE('Error: Record not found or book already returned.');
-  WHEN OTHERS THEN
-    DBMS_OUTPUT.PUT_LINE('Unexpected error occurred: ' || SQLERRM);
-END;
-/
+    -- If fine is applicable, insert into Fine table
+    IF v_fine > 0 THEN
+        INSERT INTO Fine VALUES (v_rollin, CURDATE(), v_fine);
+        SELECT CONCAT('Fine of Rs. ', v_fine, ' added for Roll No ', v_rollin) AS Message;
+    ELSE
+        SELECT ' No fine applicable.' AS Message;
+    END IF;
+
+    COMMIT;
+END$$
+
+DELIMITER ;
+ 
+ 
+ 
+ --call
+ CALL CheckFine(1, 'DBMS');
+
