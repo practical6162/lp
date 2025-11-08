@@ -1,34 +1,27 @@
-CREATE DATABASE circleDB;
-USE circleDB;
-
-CREATE TABLE Circle_Area (
-    Radius INT,
-    Area DOUBLE
+CREATE TABLE areas (
+ radius NUMBER(5,2),
+ area NUMBER(10,2)
 );
-DELIMITER $$
-
-CREATE PROCEDURE calc_circle_area()
+-------------------------------------------------------------------------
+SQL> edit area_circle.sql
+SET SERVEROUTPUT ON;
+DECLARE
+ v_radius NUMBER(5,2);
+ v_area NUMBER(10,2);
+ PI CONSTANT NUMBER := 3.14159;
 BEGIN
-    DECLARE v_radius INT DEFAULT 5;
-    DECLARE v_area DOUBLE;
-    DECLARE pi DOUBLE DEFAULT 3.14159;
-
-    -- Loop from radius 5 to 9
-    WHILE v_radius <= 9 DO
-        SET v_area = pi * v_radius * v_radius;
-
-        -- Insert radius and area into table
-        INSERT INTO Circle_Area VALUES (v_radius, v_area);
-
-        -- Show output
-        SELECT CONCAT('Radius: ', v_radius, ' | Area: ', ROUND(v_area,2)) AS Result;
-
-        SET v_radius = v_radius + 1;
-    END WHILE;
-END$$
-
-DELIMITER ;
-
--call
-CALL calc_circle_area();
-
+ -- Loop radius values from 5 to 9
+ FOR v_radius IN 5..9 LOOP
+ v_area := PI * v_radius * v_radius;
+ -- Insert into table
+ INSERT INTO areas (radius, area)
+ VALUES (v_radius, v_area);
+ DBMS_OUTPUT.PUT_LINE('Radius: ' || v_radius || ' => Area: ' || v_area);
+ END LOOP;
+ DBMS_OUTPUT.PUT_LINE('--- Areas inserted successfully ---');
+END;
+/
+------------------------------------------------------------------------------------------------
+SQL> @area_circle.sql
+--------------------------------------------------------------------------------------------------
+SELECT * FROM areas;
